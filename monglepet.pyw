@@ -1,14 +1,15 @@
 import tkinter as tk
 from tkinter import messagebox
-import json, os, time, math, random
+import json, os, time, math, random, sys
 from pathlib import Path
+from PIL import Image, ImageTk
 
 APP_NAME = "몽글펫"
 SAVE_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "MonglePet"
 SAVE_FILE = SAVE_DIR / "save.json"
 KEY = "#ff00ff"
-W, H = 110, 100
-PET_W, PET_H = 76, 80
+W, H = 92, 86
+PET_W, PET_H = 64, 68
 DEFAULT = {
     "name": "몽글이", "age_seconds": 0, "hunger": 84.0, "happiness": 84.0,
     "energy": 84.0, "coins": 80, "xp": 0,
@@ -46,6 +47,11 @@ class DeskPet:
         # Native tk.Menu 대신 둥근 파스텔 커스텀 팝업을 사용합니다.
         self.menu_window = None
         self.canvas = tk.Canvas(root, width=W, height=H, bg=KEY, highlightthickness=0, bd=0)
+        # PNG 경로를 소스 실행과 PyInstaller EXE 실행 모두에서 찾습니다.
+        base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+        self.pet_source = Image.open(base_dir / "pet_hachiware.png").convert("RGBA")
+        self.pet_photo = None
+        self.pet_photo_size = None
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<ButtonPress-1>", self.start_drag)
         self.canvas.bind("<B1-Motion>", self.do_drag)
@@ -296,114 +302,47 @@ class DeskPet:
         c.delete("all")
         t = time.time()
         sleeping = self.action == "sleep" and t < self.action_until
-        happy = self.action in ("happy", "play", "eat", "stand", "dance", "run", "jump", "stretch") and t < self.action_until
         falling = self.action in ("falling", "held")
         active = self.action if t < self.action_until else "idle"
         bob = math.sin(t*13)*3.0 if active == "dance" else math.sin(t*17)*2.5 if active == "run" else math.sin(t*10)*4 if active == "jump" else math.sin(t*7)*1.5 if self.walking and not sleeping else (0 if falling else math.sin(t*3)*1.0)
-        squish = 0.76 if self.action == "land" and t < self.action_until else (0.91 if active == "bow" else 1.0)
         level = 1 + int(self.data.get("xp", 0)//50)
         scale = 0.94 + min(0.22, max(0, level-1)*0.014)
-        cx, cy = W//2, 47 + bob
-        if falling: cy += 5
-        if active == "bow": cy += 3
-        if active == "stretch": cy -= 2
-        outline = "#34465b"
-        white = "#fffdfb"
-        blue = "#6d9fc9"
-        blue_light = "#9bc5e6"
-        # 부드러운 바닥 그림자
-        c.create_oval(cx-27, 87, cx+27, 93, fill="#e4e8ee", outline="")
-        # 몸통과 작은 발: 진한 외곽선으로 아이콘 크기에서도 형태가 또렷하게
-        c.create_oval(cx-22*scale, cy+8*scale, cx+22*scale, cy+34*scale*squish,
-                      fill=white, outline=outline, width=1.7)
-        c.create_oval(cx-8*scale, cy+27*scale, cx-1*scale, cy+32*scale,
-                      fill="#f4e9e8", outline=outline, width=1)
-        c.create_oval(cx+1*scale, cy+27*scale, cx+8*scale, cy+32*scale,
-                      fill="#f4e9e8", outline=outline, width=1)
-        # 귀와 둥근 머리 실루엣
-        c.create_polygon(cx-23*scale, cy-8*scale, cx-25*scale, cy-22*scale,
-                         cx-19*scale, cy-30*scale, cx-9*scale, cy-28*scale,
-                         cx, cy-20*scale, cx+10*scale, cy-29*scale,
-                         cx+20*scale, cy-28*scale, cx+25*scale, cy-19*scale,
-                         cx+23*scale, cy-5*scale, smooth=True, splinesteps=20,
-                         fill=white, outline=outline, width=1.8)
-        c.create_oval(cx-24*scale, cy-22*scale, cx-10*scale, cy-7*scale,
-                      fill=blue, outline=outline, width=1.4)
-        c.create_oval(cx+10*scale, cy-22*scale, cx+24*scale, cy-7*scale,
-                      fill=white, outline=outline, width=1.4)
-        # 하치와레 느낌의 파란 머리 무늬와 둥근 앞머리
-        cap = [cx-23*scale, cy-8*scale, cx-24*scale, cy-19*scale,
-               cx-19*scale, cy-27*scale, cx-10*scale, cy-29*scale,
-               cx-3*scale, cy-25*scale, cx+2*scale, cy-17*scale,
-               cx+8*scale, cy-25*scale, cx+17*scale, cy-28*scale,
-               cx+23*scale, cy-21*scale, cx+24*scale, cy-8*scale,
-               cx+16*scale, cy-5*scale, cx+8*scale, cy-8*scale,
-               cx+2*scale, cy-4*scale, cx-5*scale, cy-8*scale,
-               cx-14*scale, cy-5*scale]
-        c.create_polygon(cap, smooth=True, splinesteps=20, fill=blue, outline=outline, width=1.5)
-        # 밝은 파란색 하이라이트
-        c.create_arc(cx-18*scale, cy-25*scale, cx-3*scale, cy-14*scale,
-                     start=25, extent=115, style="arc", outline=blue_light, width=2)
-        # 분홍 볼
-        c.create_oval(cx-19*scale, cy+1*scale, cx-11*scale, cy+7*scale,
-                      fill="#f4b8c7", outline="")
-        c.create_oval(cx+11*scale, cy+1*scale, cx+19*scale, cy+7*scale,
-                      fill="#f4b8c7", outline="")
+        size = max(68, int(84 * scale))
+        if self.pet_photo_size != size:
+            resized = self.pet_source.resize((size, size), Image.Resampling.LANCZOS)
+            self.pet_photo = ImageTk.PhotoImage(resized)
+            self.pet_photo_size = size
+        cx, cy = W//2, 47 + bob + (5 if falling else 0)
+        c.create_oval(cx-25, 87, cx+25, 93, fill="#e4e8ee", outline="")
+        # 알파 채널이 있는 고해상도 PNG를 직접 사용해 캐릭터 선이 뭉개지지 않게 합니다.
+        c.create_image(cx, cy, image=self.pet_photo, anchor="center")
         if sleeping:
-            c.create_arc(cx-12*scale, cy-5*scale, cx-5*scale, cy+1*scale,
-                         start=190, extent=160, style="arc", outline=outline, width=1.7)
-            c.create_arc(cx+5*scale, cy-5*scale, cx+12*scale, cy+1*scale,
-                         start=190, extent=160, style="arc", outline=outline, width=1.7)
-            c.create_text(cx+31, cy-27, text="z z", fill="#8a9bc8", font=("Arial", 9, "bold"))
+            c.create_text(cx+31, cy-29, text="z z", fill="#8a9bc8", font=("Arial", 9, "bold"))
         elif active == "cry":
-            c.create_oval(cx-13*scale, cy-6*scale, cx-6*scale, cy+2*scale, fill=outline, outline="")
-            c.create_oval(cx+6*scale, cy-6*scale, cx+13*scale, cy+2*scale, fill=outline, outline="")
-            c.create_oval(cx-13*scale, cy+1*scale, cx-9*scale, cy+11*scale, fill="#83c7f2", outline="")
-            c.create_oval(cx+9*scale, cy+1*scale, cx+13*scale, cy+11*scale, fill="#83c7f2", outline="")
-        else:
-            # 눈동자와 반짝임
-            eye_y = cy-5*scale
-            c.create_oval(cx-13*scale, eye_y-4*scale, cx-6*scale, eye_y+5*scale, fill=outline, outline="")
-            c.create_oval(cx+6*scale, eye_y-4*scale, cx+13*scale, eye_y+5*scale, fill=outline, outline="")
-            c.create_oval(cx-11*scale, eye_y-2*scale, cx-9*scale, eye_y+1*scale, fill="#ffffff", outline="")
-            c.create_oval(cx+8*scale, eye_y-2*scale, cx+10*scale, eye_y+1*scale, fill="#ffffff", outline="")
-        # 작은 코와 입 모양
-        c.create_oval(cx-2*scale, cy+1*scale, cx+2*scale, cy+4*scale, fill="#5b4b55", outline="")
-        if happy or active in ("eat", "play", "dance"):
-            c.create_arc(cx-4*scale, cy+2*scale, cx+4*scale, cy+9*scale,
-                         start=200, extent=140, style="arc", outline="#5b4b55", width=1.6)
-            c.create_text(cx+31, cy-23, text="♥", fill="#e89bad", font=("Arial", 10, "bold"))
-        elif active == "bow":
-            c.create_arc(cx-4*scale, cy+2*scale, cx+4*scale, cy+7*scale,
-                         start=20, extent=140, style="arc", outline="#5b4b55", width=1.4)
-        else:
-            c.create_arc(cx-3*scale, cy+3*scale, cx+3*scale, cy+7*scale,
-                         start=200, extent=140, style="arc", outline="#5b4b55", width=1.3)
-        # 행동별 효과
+            c.create_oval(cx-14, cy+1, cx-10, cy+9, fill="#83c7f2", outline="")
+            c.create_oval(cx+10, cy+1, cx+14, cy+9, fill="#83c7f2", outline="")
+        elif active in ("happy", "play", "eat", "stand", "dance"):
+            c.create_text(cx+31, cy-25, text="♥", fill="#e89bad", font=("Arial", 10, "bold"))
         if active == "dance":
-            c.create_text(cx-34, cy-22, text="♪", fill="#e99bb7", font=("Arial", 13, "bold"))
-            c.create_text(cx+35, cy-25, text="♫", fill="#77a9d8", font=("Arial", 12, "bold"))
+            c.create_text(cx-34, cy-24, text="♪", fill="#e99bb7", font=("Arial", 13, "bold"))
+            c.create_text(cx+35, cy-26, text="♫", fill="#77a9d8", font=("Arial", 12, "bold"))
         elif active == "run":
-            c.create_line(cx-29, cy+6, cx-36, cy+3, fill=blue_light, width=2)
-            c.create_line(cx-28, cy+12, cx-35, cy+12, fill=blue_light, width=2)
+            c.create_line(cx-29, cy+6, cx-36, cy+3, fill="#9bc5e6", width=2)
+            c.create_line(cx-28, cy+12, cx-35, cy+12, fill="#9bc5e6", width=2)
         elif active == "jump":
-            c.create_text(cx+30, cy-31, text="✦", fill="#e9bd65", font=("Arial", 12, "bold"))
-        elif active == "stretch":
-            c.create_line(cx-19, cy+13, cx-27, cy+4, fill=white, width=4)
-            c.create_line(cx+19, cy+13, cx+27, cy+4, fill=white, width=4)
-        # 성장 장식: 높은 레벨에서는 왕관이 생깁니다.
+            c.create_text(cx+30, cy-35, text="✦", fill="#e9bd65", font=("Arial", 12, "bold"))
+        # 성장 레벨 장식
         if level >= 3:
-            c.create_text(cx-32, cy-29, text="✦", fill="#e9bd65", font=("Arial", 9, "bold"))
+            c.create_text(cx-34, cy-31, text="✦", fill="#e9bd65", font=("Arial", 9, "bold"))
         if level >= 5:
-            c.create_text(cx+33, cy-31, text="✦", fill="#e9bd65", font=("Arial", 10, "bold"))
+            c.create_text(cx+34, cy-33, text="✦", fill="#e9bd65", font=("Arial", 10, "bold"))
         if level >= 10:
-            c.create_oval(cx+18, cy-39, cx+25, cy-32, fill="#f3c4d7", outline="")
+            c.create_oval(cx+18, cy-41, cx+25, cy-34, fill="#f3c4d7", outline="")
         if level >= 20:
-            crown = [cx-10, cy-35, cx-12, cy-44, cx-5, cy-39, cx, cy-47,
-                     cx+5, cy-39, cx+12, cy-44, cx+10, cy-35]
+            crown = [cx-10, cy-37, cx-12, cy-46, cx-5, cy-41, cx, cy-49, cx+5, cy-41, cx+12, cy-46, cx+10, cy-37]
             c.create_polygon(crown, fill="#ffd66e", outline="#d5a83e", width=1.2)
         if self.data["hunger"] < 20 and not sleeping:
-            c.create_text(cx-34, cy-27, text="…", fill="#b78b95", font=("Arial", 10, "bold"))
+            c.create_text(cx-34, cy-28, text="…", fill="#b78b95", font=("Arial", 10, "bold"))
 
     def refresh(self):
         self.draw_pet()
