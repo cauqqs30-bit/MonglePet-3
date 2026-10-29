@@ -1,23 +1,19 @@
-# 몽글펫 - 작은 데스크톱 펫
+# 몽글펫 — 하치와레풍 애니메이션 업데이트
 
-Windows 작업 표시줄 바로 위에 작은 캐릭터만 보이는 데스크톱 펫입니다. 큰 창이나 상태 표시창은 기본으로 열리지 않습니다.
+Windows 작업 표시줄 위를 돌아다니는 작은 데스크톱 펫입니다. 흰 얼굴과 푸른 머리 무늬, 분홍 볼터치의 하치와레풍 디자인을 사용합니다.
 
-## 조작법
-- 캐릭터는 작업 표시줄 위를 자동으로 걸어 다닙니다.
-- 마우스 왼쪽 버튼으로 끌어 놓으면 중력에 따라 떨어지고, 작업 표시줄에 닿으면 주저앉았다 일어납니다.
-- 캐릭터를 오른쪽 클릭하면 밥 주기, 놀아주기 외에 울어버리기, 잠 깬 뒤 체조하기, 파스타 댄스, 신나게 달리기, 꾸벅 인사하기, 폴짝 뛰기, 낮잠 등 행동 메뉴가 열립니다.
-- 행동은 치이카와 애니메이션에서 기억에 남는 체조·춤·달리기·식사·인사 같은 장면에서 영감을 얻은 오리지널 미니 애니메이션이며, 공식 캐릭터 이미지나 장면을 그대로 복제하지 않습니다.
-- 성장/경험치/코인/아이템과 상태는 `%APPDATA%\\MonglePet\\save.json`에 자동 저장됩니다.
+## 구현 기능
+- 작업 표시줄 위 자동 걷기, 방향 전환, 작은 통통 튀는 움직임
+- 마우스로 잡아 끌어 놓으면 중력으로 낙하
+- 착지 시 납작해지는 효과 후 잠깐 쉬었다가 다시 일어서기
+- 우클릭 시 Windows 기본 메뉴 대신 파스텔 색상의 커스텀 메뉴
+- 밥 주기, 놀아주기, 파스타 댄스, 달리기, 인사, 점프, 울기, 기지개, 낮잠
+- 포만감·행복·기력, 성장 단계, 레벨, 코인/간식 상점
+- 자동 저장, 수동 저장, 오프라인 시간 반영
 
-## Windows EXE 직접 빌드
-`build_exe.bat`를 실행하거나 아래 명령을 사용하세요.
+## EXE 만들기
+Windows에서 `build_exe.bat`을 실행하거나 GitHub Actions의 Windows 빌드 워크플로를 실행하세요. 결과 EXE는 Windows에서 직접 실행 테스트해야 합니다.
 
-```bat
-python -m pip install --upgrade pyinstaller
-python -m PyInstaller --noconfirm --clean --onefile --windowed --name MonglePet monglepet.pyw
-```
+저장 파일: `%APPDATA%\MonglePet\save.json`
 
-EXE는 `dist\\MonglePet.exe`에 생성됩니다.
-
-## GitHub Actions로 빌드
-저장소 루트에 `monglepet.pyw`를 올리고 `.github/workflows/build-windows.yml`을 유지한 뒤 Actions에서 `Build Windows EXE`를 실행합니다. 성공한 실행 기록의 Artifacts에서 `MonglePet-Windows-EXE`를 다운로드하세요.
+참고: 캐릭터는 별도 일러스트 스프라이트가 아니라 Tkinter Canvas 도형으로 그려집니다. 동작은 실제로 구현했지만, 모든 포즈가 홍보용 그림처럼 섬세한 프레임 애니메이션인 것은 아닙니다.
