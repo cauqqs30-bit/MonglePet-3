@@ -1,20 +1,23 @@
-# 몽글펫 (MonglePet)
+# 몽글펫 - 작은 데스크톱 펫
 
-Windows 바탕화면에서 강아지/고양이를 키우는 작은 데스크톱 펫의 첫 번째 프로토타입입니다.
+Windows 작업 표시줄 바로 위에 작은 캐릭터만 보이는 데스크톱 펫입니다. 큰 창이나 상태 표시창은 기본으로 열리지 않습니다.
 
-## 실행
-- Python 3.10 이상 설치
-- `monglepet.pyw` 더블클릭으로 실행하거나 `build_exe.bat`를 더블클릭해 EXE 빌드
-- 빌드 후 `dist\MonglePet.exe` 생성
+## 조작법
+- 캐릭터는 작업 표시줄 위를 자동으로 걸어 다닙니다.
+- 마우스 왼쪽 버튼으로 끌어 놓으면 중력에 따라 떨어지고, 작업 표시줄에 닿으면 주저앉았다 일어납니다.
+- 캐릭터를 오른쪽 클릭하면 밥 주기, 놀아주기 외에 울어버리기, 잠 깬 뒤 체조하기, 파스타 댄스, 신나게 달리기, 꾸벅 인사하기, 폴짝 뛰기, 낮잠 등 행동 메뉴가 열립니다.
+- 행동은 치이카와 애니메이션에서 기억에 남는 체조·춤·달리기·식사·인사 같은 장면에서 영감을 얻은 오리지널 미니 애니메이션이며, 공식 캐릭터 이미지나 장면을 그대로 복제하지 않습니다.
+- 성장/경험치/코인/아이템과 상태는 `%APPDATA%\\MonglePet\\save.json`에 자동 저장됩니다.
 
-## 기능
-- 바탕화면 위에 표시되는 작은 창, 상단바를 잡아 드래그 이동
-- 강아지/고양이 전환, 아기→어린이→청소년→어른 성장
-- 현실 시간에 따른 상태 변화 및 오프라인 시간 반영(최대 7일)
-- 밥 주기, 놀기, 재우기, 코인 획득, 상점 구매
-- 상태 자동 저장: `%APPDATA%\MonglePet\save.json`
+## Windows EXE 직접 빌드
+`build_exe.bat`를 실행하거나 아래 명령을 사용하세요.
 
-## 참고
-- 캐릭터는 별도 3D 엔진이 아닌 Tkinter 도형으로 만든 3D풍 프로토타입입니다.
-- 실제 3D 모델/애니메이션을 적용하려면 Blender로 만든 모델과 게임 엔진 또는 렌더링 라이브러리를 추가하는 다음 단계가 필요합니다.
-- Windows에서 EXE를 만들 때 인터넷 연결이 필요할 수 있습니다. 빌드한 EXE는 Windows에서 실행하세요.
+```bat
+python -m pip install --upgrade pyinstaller
+python -m PyInstaller --noconfirm --clean --onefile --windowed --name MonglePet monglepet.pyw
+```
+
+EXE는 `dist\\MonglePet.exe`에 생성됩니다.
+
+## GitHub Actions로 빌드
+저장소 루트에 `monglepet.pyw`를 올리고 `.github/workflows/build-windows.yml`을 유지한 뒤 Actions에서 `Build Windows EXE`를 실행합니다. 성공한 실행 기록의 Artifacts에서 `MonglePet-Windows-EXE`를 다운로드하세요.
