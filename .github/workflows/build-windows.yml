@@ -1,0 +1,40 @@
+
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller pillow
+
+      - name: Build EXE
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name MonglePet --add-data "pet_hachiware.png;." monglepet.pyw
+
+      - name: Verify EXE exists
+        shell: pwsh
+        run: if (!(Test-Path "dist/MonglePet.exe")) { throw "MonglePet.exe was not created" }
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: MonglePet-Windows-EXE
+          path: dist/MonglePet.exe
+          if-no-files-found: error
