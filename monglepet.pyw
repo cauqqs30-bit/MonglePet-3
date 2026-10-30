@@ -1,15 +1,14 @@
 import tkinter as tk
 from tkinter import messagebox
-import json, os, time, math, random, sys
+import json, os, time, math, random
 from pathlib import Path
-from PIL import Image, ImageTk
 
 APP_NAME = "몽글펫"
 SAVE_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "MonglePet"
 SAVE_FILE = SAVE_DIR / "save.json"
 KEY = "#ff00ff"
-W, H = 92, 86
-PET_W, PET_H = 64, 68
+W, H = 160, 150
+PET_W, PET_H = 112, 120
 DEFAULT = {
     "name": "몽글이", "age_seconds": 0, "hunger": 84.0, "happiness": 84.0,
     "energy": 84.0, "coins": 80, "xp": 0,
@@ -39,19 +38,28 @@ class DeskPet:
         self.vy = 0.0
         self.action = "idle"
         self.action_until = 0
+        self.action_started = time.time()
         self.direction = random.choice([-1, 1])
         self.walking = True
         self.next_turn = time.time() + random.uniform(2.0, 5.0)
         self.last_tick = time.time()
         self.blink_until = 0
-        # Native tk.Menu 대신 둥근 파스텔 커스텀 팝업을 사용합니다.
-        self.menu_window = None
+        self.menu = tk.Menu(root, tearoff=0, font=("맑은 고딕", 10))
+        self.menu.add_command(label="🍙 밥 주기", command=self.feed)
+        self.menu.add_command(label="🧸 놀아주기 (+코인)", command=self.play)
+        self.menu.add_command(label="💤 침대에서 낮잠 자기", command=self.sleep_pet)
+        self.menu.add_command(label="🏃 뛰기", command=lambda: self.do_action("run", 5.0))
+        self.menu.add_command(label="🪑 앉기", command=lambda: self.do_action("sit", 4.0))
+        self.menu.add_command(label="💃 춤추기", command=lambda: self.do_action("dance", 5.0))
+        self.menu.add_command(label="🧘 기지개 켜기", command=lambda: self.do_action("stretch", 3.0))
+        self.menu.add_command(label="🫶 쓰다듬기", command=lambda: self.do_action("pet", 3.0))
+        self.menu.add_separator()
+        self.menu.add_command(label="🎒 상태 확인", command=self.show_status)
+        self.menu.add_command(label="🛍 간식 상점", command=self.open_shop)
+        self.menu.add_separator()
+        self.menu.add_command(label="💾 지금 저장", command=self.save_data)
+        self.menu.add_command(label="✕ 종료", command=self.close)
         self.canvas = tk.Canvas(root, width=W, height=H, bg=KEY, highlightthickness=0, bd=0)
-        # PNG 경로를 소스 실행과 PyInstaller EXE 실행 모두에서 찾습니다.
-        base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-        self.pet_source = Image.open(base_dir / "pet_hachiware.png").convert("RGBA")
-        self.pet_photo = None
-        self.pet_photo_size = None
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<ButtonPress-1>", self.start_drag)
         self.canvas.bind("<B1-Motion>", self.do_drag)
@@ -148,72 +156,10 @@ class DeskPet:
 
     def popup_menu(self, e):
         self.walking = False
-        if self.menu_window and self.menu_window.winfo_exists():
-            self.menu_window.destroy()
-        win = tk.Toplevel(self.root)
-        self.menu_window = win
-        win.overrideredirect(True)
-        win.attributes("-topmost", True)
-        win.configure(bg="#c5dff6")
-        outer = tk.Frame(win, bg="#c5dff6", padx=2, pady=2)
-        outer.pack(fill="both", expand=True)
-        panel = tk.Frame(outer, bg="#fffdfb", padx=8, pady=8)
-        panel.pack(fill="both", expand=True)
-        tk.Label(panel, text="🐾  몽글펫 메뉴", bg="#eaf5ff", fg="#315b86",
-                 font=("맑은 고딕", 10, "bold"), anchor="w", padx=8, pady=6).pack(fill="x", pady=(0, 5))
-        actions = [
-            ("🍙", "밥 주기", self.feed), ("🧸", "놀아주기 · 코인 +5", self.play),
-            ("💃", "파스타 댄스", lambda: self.do_action("dance", 2.5)),
-            ("🏃", "신나게 달리기", lambda: self.do_action("run", 2.0)),
-            ("🙇", "꾸벅 인사하기", lambda: self.do_action("bow", 1.5)),
-            ("✨", "폴짝 뛰기", lambda: self.do_action("jump", 1.6)),
-            ("😭", "엉엉 울기", lambda: self.do_action("cry", 2.0)),
-            ("🌞", "기지개 켜기", lambda: self.do_action("stretch", 1.8)),
-            ("💤", "낮잠 자기", self.sleep_pet),
-            ("💗", "상태 확인", self.show_status), ("🛍️", "간식 상점", self.open_shop),
-            ("💾", "지금 저장", self.save_data), ("⏻", "종료", self.close),
-        ]
-        for emoji, label, command in actions:
-            b = tk.Button(panel, text=f"{emoji}   {label}", anchor="w", command=lambda fn=command, w=win: self.run_menu_command(fn, w),
-                          relief="flat", bd=0, bg="#fffdfb", fg="#35465b", activebackground="#e8f4ff",
-                          activeforeground="#244d79", font=("맑은 고딕", 9), padx=9, pady=4, cursor="hand2")
-            b.pack(fill="x", pady=1)
-            b.bind("<Enter>", lambda ev, btn=b: btn.configure(bg="#e8f4ff"))
-            b.bind("<Leave>", lambda ev, btn=b: btn.configure(bg="#fffdfb"))
-        tk.Label(panel, text=f"🪙 {self.data['coins']} 코인  ·  Lv.{1+int(self.data['xp']//50)}",
-                 bg="#f2f8ff", fg="#6d8baa", font=("맑은 고딕", 8), pady=5).pack(fill="x", pady=(5, 0))
-        win.update_idletasks()
-        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
-        px = min(max(4, e.x_root), sw-win.winfo_reqwidth()-4)
-        py = min(max(4, e.y_root- win.winfo_reqheight()), sh-win.winfo_reqheight()-4)
-        win.geometry(f"+{px}+{py}")
-        win.bind("<Escape>", lambda ev: self.close_menu())
-        win.bind("<FocusOut>", lambda ev: self.root.after(180, self.close_menu_if_unfocused))
-        win.focus_force()
-
-    def run_menu_command(self, fn, win):
-        try: win.destroy()
-        except Exception: pass
-        self.menu_window = None
-        self.walking = True
-        fn()
-
-    def close_menu(self):
-        if self.menu_window and self.menu_window.winfo_exists(): self.menu_window.destroy()
-        self.menu_window = None
-        self.walking = True
-
-    def close_menu_if_unfocused(self):
-        try:
-            if self.menu_window and self.menu_window.winfo_exists() and self.root.focus_displayof() is None:
-                self.close_menu()
-        except Exception: pass
-
-    def do_action(self, name, duration=2.0):
-        self.action, self.action_until = name, time.time()+duration
-        if name in ("run", "dance", "jump"): self.data["happiness"] = clamp(self.data["happiness"]+3)
-        self.data["xp"] += 1
-        self.save_data(); self.refresh()
+        try: self.menu.tk_popup(e.x_root, e.y_root)
+        finally:
+            self.menu.grab_release()
+            self.walking = True
 
     def stage(self):
         days = self.data.get("age_seconds", 0) / 86400
@@ -230,7 +176,7 @@ class DeskPet:
         self.data["hunger"] = clamp(self.data["hunger"] + 27)
         self.data["happiness"] = clamp(self.data["happiness"] + 5)
         self.data["xp"] += 5
-        self.action, self.action_until = "eat", time.time()+1.6
+        self.action, self.action_until = "eat", time.time()+3.0
         self.save_data(); self.refresh()
 
     def play(self):
@@ -240,38 +186,22 @@ class DeskPet:
         self.data["energy"] = clamp(self.data["energy"] - 10)
         self.data["hunger"] = clamp(self.data["hunger"] - 5)
         self.data["xp"] += 8; self.data["coins"] += 5
-        self.action, self.action_until = "play", time.time()+2.2
+        self.action, self.action_until = "play", time.time()+3.5
         self.save_data(); self.refresh()
 
     def sleep_pet(self):
         self.data["energy"] = clamp(self.data["energy"] + 30)
-        self.action, self.action_until = "sleep", time.time()+3
+        self.action_started = time.time()
+        self.action, self.action_until = "sleep", self.action_started+12
+        self.walking = False
         self.save_data(); self.refresh()
 
     def show_status(self):
         d = self.data
-        level = 1 + int(d.get("xp", 0) // 50)
-        progress = int(d.get("xp", 0) % 50)
-        win = tk.Toplevel(self.root)
-        win.title("몽글펫 상태")
-        win.geometry("300x285")
-        win.resizable(False, False)
-        win.configure(bg="#fffaf3")
-        win.attributes("-topmost", True)
-        tk.Label(win, text=f"🐾 몽글이 · {self.stage()}", bg="#eaf5ff", fg="#315b86",
-                 font=("맑은 고딕", 12, "bold"), pady=10).pack(fill="x", padx=12, pady=(12, 8))
-        tk.Label(win, text=f"Lv. {level}   다음 레벨까지 {50-progress} XP", bg="#fffaf3",
-                 fg="#35465b", font=("맑은 고딕", 10, "bold")).pack(anchor="w", padx=18)
-        bar = tk.Canvas(win, width=260, height=18, bg="#e7eaf0", highlightthickness=0)
-        bar.pack(padx=18, pady=(6, 10))
-        bar.create_rectangle(0, 0, 260 * progress / 50, 18, fill="#78b8e8", outline="")
-        bar.create_text(130, 9, text=f"{progress}/50 XP", fill="#254b70", font=("맑은 고딕", 8, "bold"))
-        for label, value, color in [("🍙 포만감", d["hunger"], "#e9b85e"), ("😊 행복", d["happiness"], "#e99bb7"), ("⚡ 기력", d["energy"], "#78b8e8")]:
-            row = tk.Frame(win, bg="#fffaf3"); row.pack(fill="x", padx=18, pady=2)
-            tk.Label(row, text=label, bg="#fffaf3", fg="#35465b", font=("맑은 고딕", 9), width=10, anchor="w").pack(side="left")
-            tk.Label(row, text=f"{int(value)}%", bg="#fffaf3", fg=color, font=("맑은 고딕", 9, "bold")).pack(side="right")
-        tk.Label(win, text=f"🪙 {d['coins']} 코인   🍡 간식 {d['items'].get('간식',0)}개   🧸 장난감 {d['items'].get('장난감',0)}개",
-                 bg="#f2f8ff", fg="#6d8baa", font=("맑은 고딕", 8), pady=8).pack(fill="x", padx=12, pady=(8, 10))
+        msg = (f"몽글이 · {self.stage()} · Lv.{1+int(d['xp']//50)}\n\n"
+               f"🍙 포만감  {int(d['hunger'])}%\n😊 행복    {int(d['happiness'])}%\n⚡ 기력    {int(d['energy'])}%\n\n"
+               f"🪙 코인    {d['coins']}\n🍡 간식    {d['items'].get('간식',0)}개\n🧸 장난감  {d['items'].get('장난감',0)}개")
+        messagebox.showinfo("몽글펫 상태", msg, parent=self.root)
 
     def open_shop(self):
         win = tk.Toplevel(self.root); win.title("몽글펫 간식 상점"); win.geometry("300x220")
@@ -289,60 +219,146 @@ class DeskPet:
         self.data["coins"] -= price
         self.data["items"][item] = self.data["items"].get(item, 0) + amount
         self.save_data(); self.refresh()
-        # 구매 즉시 인벤토리와 코인 수량만 갱신하고, 완료/상태 팝업은 띄우지 않습니다.
-        try:
-            for child in win.winfo_children():
-                if isinstance(child, tk.Label) and "보유 코인" in child.cget("text"):
-                    child.configure(text=f"🪙 보유 코인: {self.data['coins']}")
-        except Exception:
-            pass
+        messagebox.showinfo("구매 완료", f"{item} 구매 완료!", parent=win)
+
+    def do_action(self, action, duration=3.0):
+        self.action = action
+        self.action_started = time.time()
+        self.action_until = self.action_started + duration
+        self.walking = False
+        if action in ("run", "dance", "play", "pet"):
+            self.data["happiness"] = clamp(self.data["happiness"] + (5 if action != "pet" else 3))
+        if action == "run":
+            self.data["energy"] = clamp(self.data["energy"] - 4)
+        self.save_data(); self.refresh()
 
     def draw_pet(self):
-        c = self.canvas
-        c.delete("all")
-        t = time.time()
-        sleeping = self.action == "sleep" and t < self.action_until
-        falling = self.action in ("falling", "held")
-        active = self.action if t < self.action_until else "idle"
-        bob = math.sin(t*13)*3.0 if active == "dance" else math.sin(t*17)*2.5 if active == "run" else math.sin(t*10)*4 if active == "jump" else math.sin(t*7)*1.5 if self.walking and not sleeping else (0 if falling else math.sin(t*3)*1.0)
-        level = 1 + int(self.data.get("xp", 0)//50)
-        scale = 0.94 + min(0.22, max(0, level-1)*0.014)
-        size = max(68, int(84 * scale))
-        if self.pet_photo_size != size:
-            resized = self.pet_source.resize((size, size), Image.Resampling.LANCZOS)
-            self.pet_photo = ImageTk.PhotoImage(resized)
-            self.pet_photo_size = size
-        cx, cy = W//2, 47 + bob + (5 if falling else 0)
-        c.create_oval(cx-25, 87, cx+25, 93, fill="#e4e8ee", outline="")
-        # 알파 채널이 있는 고해상도 PNG를 직접 사용해 캐릭터 선이 뭉개지지 않게 합니다.
-        c.create_image(cx, cy, image=self.pet_photo, anchor="center")
-        if sleeping:
-            c.create_text(cx+31, cy-29, text="z z", fill="#8a9bc8", font=("Arial", 9, "bold"))
-        elif active == "cry":
-            c.create_oval(cx-14, cy+1, cx-10, cy+9, fill="#83c7f2", outline="")
-            c.create_oval(cx+10, cy+1, cx+14, cy+9, fill="#83c7f2", outline="")
-        elif active in ("happy", "play", "eat", "stand", "dance"):
-            c.create_text(cx+31, cy-25, text="♥", fill="#e89bad", font=("Arial", 10, "bold"))
-        if active == "dance":
-            c.create_text(cx-34, cy-24, text="♪", fill="#e99bb7", font=("Arial", 13, "bold"))
-            c.create_text(cx+35, cy-26, text="♫", fill="#77a9d8", font=("Arial", 12, "bold"))
-        elif active == "run":
-            c.create_line(cx-29, cy+6, cx-36, cy+3, fill="#9bc5e6", width=2)
-            c.create_line(cx-28, cy+12, cx-35, cy+12, fill="#9bc5e6", width=2)
-        elif active == "jump":
-            c.create_text(cx+30, cy-35, text="✦", fill="#e9bd65", font=("Arial", 12, "bold"))
-        # 성장 레벨 장식
-        if level >= 3:
-            c.create_text(cx-34, cy-31, text="✦", fill="#e9bd65", font=("Arial", 9, "bold"))
-        if level >= 5:
-            c.create_text(cx+34, cy-33, text="✦", fill="#e9bd65", font=("Arial", 10, "bold"))
-        if level >= 10:
-            c.create_oval(cx+18, cy-41, cx+25, cy-34, fill="#f3c4d7", outline="")
-        if level >= 20:
-            crown = [cx-10, cy-37, cx-12, cy-46, cx-5, cy-41, cx, cy-49, cx+5, cy-41, cx+12, cy-46, cx+10, cy-37]
-            c.create_polygon(crown, fill="#ffd66e", outline="#d5a83e", width=1.2)
-        if self.data["hunger"] < 20 and not sleeping:
-            c.create_text(cx-34, cy-28, text="…", fill="#b78b95", font=("Arial", 10, "bold"))
+        c = self.canvas; c.delete("all")
+        t = time.time(); a = self.action
+        active = t < self.action_until
+        if not active and a not in ("idle",): a = "idle"
+        phase = t * (17 if a == "run" else 8)
+        bob = math.sin(phase) * (5 if a in ("run", "dance", "play") else 1.8)
+        cx = 80; floor = 130
+        # Ground shadow and action-specific props
+        c.create_oval(37, 126, 123, 139, fill="#e9e2e5", outline="")
+        if a == "sleep":
+            # 침대가 부드럽게 들어오고 몽글이가 천천히 몸을 낮춘 뒤 이불을 덮습니다.
+            elapsed = max(0.0, t - self.action_started)
+            enter = min(1.0, elapsed / 0.85)
+            settle = min(1.0, max(0.0, (elapsed - 0.45) / 0.9))
+            bed_y = 150 - 18 * enter
+            c.create_oval(17, bed_y-48, 143, bed_y+12, fill="#b8d9f5", outline="#8ebbe3", width=3)
+            c.create_oval(24, bed_y-43, 136, bed_y+5, fill="#d9edff", outline="#a8cfee", width=2)
+            c.create_oval(28, bed_y-42, 132, bed_y-8, fill="#fff8f3", outline="#eadfe0", width=2)
+            cat_y = 83 + 16 * settle + math.sin(t*2.2)*0.8
+            self.draw_cat(c, 80, cat_y, 0.93, "sleep", t, True)
+            blanket = min(1.0, max(0.0, (elapsed - 1.15) / 0.8))
+            if blanket > 0:
+                top = 122 - 19 * blanket
+                c.create_oval(28, top, 132, 151, fill="#a9d2f3", outline="#86b6e3", width=2)
+                c.create_arc(30, top+2, 130, 151, start=0, extent=180, style="arc", outline="#d9edff", width=3)
+            if elapsed > 1.8:
+                z_y = 45 + math.sin(t*2)*4
+                c.create_text(124, z_y, text="Z", fill="#82a9d4", font=("맑은 고딕", 12, "bold"))
+                c.create_text(140, z_y-15, text="z", fill="#82a9d4", font=("맑은 고딕", 9, "bold"))
+            return
+        if a == "eat":
+            c.create_oval(103, 112, 145, 132, fill="#f5b7c8", outline="#d98ca3", width=2)
+            c.create_oval(108, 113, 140, 124, fill="#ffe4a6", outline="#d9b879")
+            for i in range(4): c.create_oval(111+i*7, 115+(i%2)*2, 115+i*7, 119+(i%2)*2, fill="#e99d69", outline="")
+            self.draw_cat(c, 67, 103+bob*.2, 0.9, "eat", t, False)
+            c.create_text(122, 91, text="냠냠", fill="#e49a76", font=("맑은 고딕", 9, "bold"))
+            return
+        if a == "sit":
+            self.draw_cat(c, cx, 111, 1.0, "sit", t, False); return
+        if a == "stretch":
+            self.draw_cat(c, cx, 111, 1.0, "stretch", t, False); return
+        if a == "run":
+            # speed streaks + fast alternating stride
+            for i in range(3): c.create_line(8+i*8, 87+i*10, 32+i*8, 87+i*10, fill="#b9dff7", width=3, capstyle="round")
+            self.draw_cat(c, cx, 105+bob, 1.0, "run", t, False)
+            return
+        if a == "dance":
+            self.draw_cat(c, cx, 106+bob, 1.0, "dance", t, False)
+            c.create_text(24, 62, text="♪", fill="#e9a7c2", font=("Arial", 18, "bold")); c.create_text(135, 53, text="♫", fill="#8ebbe3", font=("Arial", 17, "bold")); return
+        if a == "play":
+            c.create_oval(117+math.sin(t*5)*8, 110, 139+math.sin(t*5)*8, 132, fill="#8cc8f0", outline="#6da9d7", width=2)
+            self.draw_cat(c, cx, 106+bob, 1.0, "play", t, False); return
+        if a == "pet":
+            c.create_oval(115, 24+math.sin(t*8)*3, 146, 48+math.sin(t*8)*3, fill="#ffe0c9", outline="#e9bda6", width=2)
+            c.create_line(127, 46, 120, 57, fill="#e9bda6", width=4)
+            c.create_text(30, 47, text="♥", fill="#f29ab0", font=("Arial", 16, "bold"))
+        self.draw_cat(c, cx, 107+bob, 1.0, "idle", t, False)
+        if self.data["hunger"] < 20: c.create_text(35, 52, text="…", fill="#b78b95", font=("Arial", 14, "bold"))
+
+    def draw_cat(self, c, cx, cy, scale, pose, t, on_bed):
+        # Original white kitten: rounded silhouette, pink ears/cheeks, blue collar and bell.
+        s=scale; outline="#d8cfd0"; fur="#fffdfb"
+        lean = 8*math.sin(t*14) if pose in ("run", "dance") else 0
+        # tail, animated separately
+        tail_y = math.sin(t*5)*5
+        c.create_oval(cx+24*s, cy+3*s+tail_y, cx+43*s, cy+27*s+tail_y, fill=fur, outline=outline, width=2)
+        # body
+        if pose == "sleep":
+            c.create_oval(cx-39*s, cy-6*s, cx+39*s, cy+31*s, fill=fur, outline=outline, width=2)
+            c.create_oval(cx-32*s, cy-19*s, cx+30*s, cy+19*s, fill=fur, outline=outline, width=2)
+            c.create_polygon(cx-28*s,cy-28*s,cx-24*s,cy-52*s,cx-5*s,cy-32*s, fill=fur, outline=outline, width=2)
+            c.create_polygon(cx+8*s,cy-32*s,cx+29*s,cy-52*s,cx+32*s,cy-23*s, fill=fur, outline=outline, width=2)
+            c.create_line(cx-13*s,cy-4*s,cx-5*s,cy-2*s,fill="#55474b",width=2)
+            c.create_line(cx+5*s,cy-2*s,cx+13*s,cy-4*s,fill="#55474b",width=2)
+            c.create_oval(cx-19*s,cy+2*s,cx-9*s,cy+9*s,fill="#f5becb",outline="")
+            c.create_oval(cx+9*s,cy+2*s,cx+19*s,cy+9*s,fill="#f5becb",outline="")
+            return
+        # feet with alternating movement for running
+        stride = math.sin(t*19)*10 if pose == "run" else (math.sin(t*9)*4 if pose=="dance" else 0)
+        if pose == "stretch":
+            c.create_oval(cx-40*s,cy+10*s,cx-7*s,cy+23*s,fill=fur,outline=outline,width=2)
+            c.create_oval(cx+7*s,cy+10*s,cx+40*s,cy+23*s,fill=fur,outline=outline,width=2)
+        elif pose == "run":
+            lift_a = max(0, math.sin(t*19))*8
+            lift_b = max(0, -math.sin(t*19))*8
+            c.create_oval(cx-25*s-stride*.55,cy+34*s-lift_a,cx-3*s-stride*.55,cy+43*s-lift_a,fill=fur,outline=outline,width=2)
+            c.create_oval(cx+3*s+stride*.55,cy+34*s-lift_b,cx+25*s+stride*.55,cy+43*s-lift_b,fill=fur,outline=outline,width=2)
+        else:
+            c.create_oval(cx-24*s-stride,cy+34*s,cx-2*s-stride,cy+43*s,fill=fur,outline=outline,width=2)
+            c.create_oval(cx+3*s+stride,cy+34*s,cx+25*s+stride,cy+43*s,fill=fur,outline=outline,width=2)
+        c.create_oval(cx-29*s,cy+1*s,cx+29*s,cy+39*s,fill=fur,outline=outline,width=2)
+        if pose == "run":
+            arm = math.sin(t*19)*7
+            c.create_oval(cx-34*s, cy+12*s+arm, cx-21*s, cy+28*s+arm, fill=fur, outline=outline, width=2)
+            c.create_oval(cx+21*s, cy+12*s-arm, cx+34*s, cy+28*s-arm, fill=fur, outline=outline, width=2)
+        # ears
+        c.create_polygon(cx-30*s,cy-22*s,cx-27*s,cy-53*s,cx-5*s,cy-31*s,fill=fur,outline=outline,width=2)
+        c.create_polygon(cx+5*s,cy-31*s,cx+27*s,cy-53*s,cx+31*s,cy-20*s,fill=fur,outline=outline,width=2)
+        c.create_polygon(cx-24*s,cy-31*s,cx-26*s,cy-45*s,cx-14*s,cy-32*s,fill="#f7c8d0",outline="")
+        c.create_polygon(cx+14*s,cy-32*s,cx+25*s,cy-45*s,cx+24*s,cy-29*s,fill="#f7c8d0",outline="")
+        # head
+        c.create_oval(cx-39*s+lean,cy-36*s,cx+39*s+lean,cy+29*s,fill=fur,outline=outline,width=2)
+        # cheeks and face
+        c.create_oval(cx-30*s+lean,cy+2*s,cx-19*s+lean,cy+12*s,fill="#f6c1cc",outline="")
+        c.create_oval(cx+19*s+lean,cy+2*s,cx+30*s+lean,cy+12*s,fill="#f6c1cc",outline="")
+        if pose == "sleep":
+            pass
+        elif pose == "eat":
+            c.create_oval(cx-13*s,cy-8*s,cx-7*s,cy+1*s,fill="#42383b",outline="")
+            c.create_oval(cx+7*s,cy-8*s,cx+13*s,cy+1*s,fill="#42383b",outline="")
+            c.create_oval(cx-4*s,cy+4*s,cx+4*s,cy+12*s,fill="#bd778b",outline="")
+        else:
+            blink = (int(t*2.2)%5==0 and (t*2.2)%1>0.82)
+            if blink:
+                c.create_line(cx-16*s,cy-5*s,cx-8*s,cy-5*s,fill="#42383b",width=2)
+                c.create_line(cx+8*s,cy-5*s,cx+16*s,cy-5*s,fill="#42383b",width=2)
+            else:
+                c.create_oval(cx-16*s,cy-10*s,cx-8*s,cy+3*s,fill="#42383b",outline="")
+                c.create_oval(cx+8*s,cy-10*s,cx+16*s,cy+3*s,fill="#42383b",outline="")
+                c.create_oval(cx-13*s,cy-8*s,cx-10*s,cy-4*s,fill="white",outline="")
+                c.create_oval(cx+11*s,cy-8*s,cx+14*s,cy-4*s,fill="white",outline="")
+            c.create_oval(cx-3*s,cy+5*s,cx+3*s,cy+9*s,fill="#e99baa",outline="")
+            c.create_arc(cx-7*s,cy+6*s,cx+7*s,cy+17*s,start=200,extent=140,style="arc",outline="#59494d",width=2)
+        # blue collar and golden bell
+        c.create_arc(cx-25*s,cy+17*s,cx+25*s,cy+39*s,start=190,extent=160,style="arc",outline="#91c9ee",width=5)
+        c.create_oval(cx-5*s,cy+29*s,cx+5*s,cy+39*s,fill="#f4ca68",outline="#d7a94a",width=1)
 
     def refresh(self):
         self.draw_pet()
@@ -369,14 +385,18 @@ class DeskPet:
             else:
                 self.root.geometry(f"+{max(0,min(self.root.winfo_screenwidth()-W,x))}+{y}")
         elif not self.drag_start:
-            if self.menu_window and self.menu_window.winfo_exists():
-                pass
-            elif self.action in ("land", "falling", "held") and now < self.action_until:
+            if self.action == "run" and now < self.action_until:
+                x += int(self.direction * 8)
+                max_x = max(0, self.root.winfo_screenwidth()-W)
+                if x <= 0: x, self.direction = 0, 1
+                elif x >= max_x: x, self.direction = max_x, -1
+                self.root.geometry(f"+{x}+{floor_y}")
+            if self.action in ("land", "falling", "held") and now < self.action_until:
                 pass
             elif self.action == "sleep" and now < self.action_until:
                 pass
             else:
-                if self.action in ("sleep", "land", "falling", "held", "happy", "play", "eat", "stand") and now >= self.action_until:
+                if self.action in ("sleep", "land", "falling", "held", "happy", "play", "eat", "stand", "run", "sit", "dance", "stretch", "pet") and now >= self.action_until:
                     self.action = "idle"
                 # Walk autonomously along the top edge of the taskbar.
                 if now >= self.next_turn and self.action in ("idle", "happy", "play", "eat"):
@@ -384,7 +404,7 @@ class DeskPet:
                     self.walking = random.random() > 0.25
                     self.next_turn = now + random.uniform(1.5, 4.5)
                 if self.walking and self.action == "idle":
-                    x += int(self.direction * 1.8)
+                    x += int(self.direction * 2.0)
                     max_x = max(0, self.root.winfo_screenwidth()-W)
                     if x <= 0: x, self.direction = 0, 1
                     elif x >= max_x: x, self.direction = max_x, -1
@@ -402,11 +422,7 @@ class DeskPet:
             self.refresh()
 
     def close(self):
-        self.save_data()
-        try:
-            if self.menu_window and self.menu_window.winfo_exists(): self.menu_window.destroy()
-        except Exception: pass
-        self.root.destroy()
+        self.save_data(); self.root.destroy()
 
 if __name__ == "__main__":
     root = tk.Tk()

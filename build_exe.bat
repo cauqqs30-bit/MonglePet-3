@@ -13,8 +13,8 @@ if errorlevel 1 (
   exit /b 1
 )
 py -m pip install --upgrade pip
-py -m pip install pyinstaller pillow
-py -m PyInstaller --noconfirm --clean --onefile --windowed --name MonglePet --add-data "pet_hachiware.png;." monglepet.pyw
+py -m pip install pyinstaller
+py -m PyInstaller --noconfirm --clean --onefile --windowed --name MonglePet monglepet.pyw
 if errorlevel 1 (
   echo 빌드에 실패했습니다. 위 오류를 확인하세요.
   pause
